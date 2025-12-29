@@ -1,0 +1,596 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========= ENUMS =========
+enum Axis {
+  body
+  focus
+  knowledge
+  discipline
+  organization
+  social
+}
+
+enum ItemStatus {
+  todo
+  done
+  skipped
+}
+
+enum PlanItemSource {
+  system
+  series
+  user
+}
+
+enum Quality {
+  low
+  mid
+  high
+}
+
+enum ClientSource {
+  app
+  notification
+  widget
+  unknown
+}
+
+enum DraftMode {
+  narrative
+  neutral
+  professional
+}
+
+enum Currency {
+  gold
+  diamond
+}
+
+enum Rarity {
+  common
+  rare
+  epic
+}
+
+enum CosmeticSlot {
+  head
+  face
+  body
+  legs
+  back
+  accessory
+}
+
+enum RuleType {
+  DAILY
+  WEEKDAYS
+  WEEKLY
+  N_PER_WEEK
+  ONCE
+}
+
+enum EditType {
+  replace
+  lock
+  unlock
+  hide
+  unhide
+}
+
+enum EnergyPattern {
+  morning
+  noon
+  evening
+  night
+  unknown
+}
+
+enum GoalType {
+  health
+  study
+  career
+  finance
+  relationship
+  organization
+  mindset
+  selfcare
+}
+
+enum TimeOfDay {
+  morning
+  afternoon
+  evening
+  night
+  any
+}
+
+// ========= USERS / PROFILES =========
+model User {
+  id        String   @id @default(uuid())
+  email     String?  @unique
+  status    String   @default("active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  profile              Profile?
+  goals                Goal[]
+  axisScoresSnapshot   AxisScoresSnapshot?
+  progressSnapshot     ProgressSnapshot?
+  walletSnapshot       WalletSnapshot?
+  plans                Plan[]
+  completionEvents     CompletionEvent[]
+  idempotencyKeys      IdempotencyKey[]
+  rewardEvents         RewardEvent[]
+  walletLedger         WalletLedger[]
+  axisLedger           AxisLedger[]
+  expLedger            ExpLedger[]
+  series               Series[]
+  storyDrafts          StoryDraft[]
+  inventory            Inventory[]
+  equippedItems        EquippedItem[]
+  purchaseEvents       PurchaseEvent[]
+
+  @@map("users")
+}
+
+model Profile {
+  userId            String        @id @map("user_id")
+  displayName       String        @map("display_name") @db.VarChar(40)
+  timezone          String        @default("Asia/Seoul")
+  timeBudgetMinutes Int           @map("time_budget_minutes")
+  quietHours        Json?         @map("quiet_hours")
+  energyPattern     EnergyPattern @default(unknown) @map("energy_pattern")
+  resumeJson        Json          @default("{}") @map("resume_json")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Goal {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  title       String   @db.VarChar(80)
+  axis        Axis
+  metric      String?  @db.VarChar(80)
+  targetValue String?  @map("target_value") @db.VarChar(40)
+  priority    Int      @db.SmallInt
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  whyChains WhyChain[]
+  planItems PlanItem[]
+  series    Series[]
+
+  @@index([userId])
+  @@map("goals")
+}
+
+model WhyChain {
+  id        String   @id @default(uuid())
+  goalId    String   @map("goal_id")
+  why1      String
+  why2      String?
+  why3      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+  @@map("why_chains")
+}
+
+// ========= SNAPSHOTS =========
+model AxisScoresSnapshot {
+  userId       String   @id @map("user_id")
+  body         Int      @default(0)
+  focus        Int      @default(0)
+  knowledge    Int      @default(0)
+  discipline   Int      @default(0)
+  organization Int      @default(0)
+  social       Int      @default(0)
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("axis_scores_snapshot")
+}
+
+model ProgressSnapshot {
+  userId    String   @id @map("user_id")
+  level     Int      @default(1)
+  exp       Int      @default(0)
+  expToNext Int      @default(100) @map("exp_to_next")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("progress_snapshot")
+}
+
+model WalletSnapshot {
+  userId    String   @id @map("user_id")
+  gold      BigInt   @default(0)
+  diamond   BigInt   @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallet_snapshot")
+}
+
+// ========= TEMPLATES =========
+model QuestTemplate {
+  id               String    @id @default(uuid())
+  seedId           String    @map("seed_id") @db.VarChar(40)
+  axis             Axis
+  goalType         GoalType  @map("goal_type")
+  timeOfDay        TimeOfDay @map("time_of_day")
+  tier             Int       @db.SmallInt
+  title            String    @db.VarChar(80)
+  description      String    @db.VarChar(140)
+  estimatedMinutes Int       @map("estimated_minutes") @db.SmallInt
+  whyPrompt        String    @map("why_prompt") @db.VarChar(120)
+  successCriteria  String    @map("success_criteria") @db.VarChar(120)
+  baseGold         Int       @map("base_gold")
+  baseExp          Int       @map("base_exp")
+  axisDelta        Json      @default("{}") @map("axis_delta")
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  planItems PlanItem[]
+
+  @@unique([seedId, tier])
+  @@index([axis, tier, timeOfDay, goalType])
+  @@map("quest_templates")
+}
+
+// ========= PLANS / ITEMS =========
+model Plan {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  date          DateTime @db.Date
+  generatedFrom String   @default("onboarding") @map("generated_from")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items PlanItem[]
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("plans")
+}
+
+model PlanItem {
+  id               String         @id @default(uuid())
+  planId           String         @map("plan_id")
+  source           PlanItemSource
+  templateId       String?        @map("template_id")
+  seriesId         String?        @map("series_id")
+  axis             Axis
+  goalId           String?        @map("goal_id")
+  title            String         @db.VarChar(80)
+  description      String?        @db.VarChar(140)
+  tier             Int            @db.SmallInt
+  scheduledAt      DateTime?      @map("scheduled_at")
+  estimatedMinutes Int            @default(15) @map("estimated_minutes") @db.SmallInt
+  status           ItemStatus     @default(todo)
+  lockedByUser     Boolean        @default(false) @map("locked_by_user")
+  sortOrder        Int            @default(0) @map("sort_order")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  plan             Plan              @relation(fields: [planId], references: [id], onDelete: Cascade)
+  template         QuestTemplate?    @relation(fields: [templateId], references: [id])
+  series           Series?           @relation(fields: [seriesId], references: [id])
+  goal             Goal?             @relation(fields: [goalId], references: [id])
+  override         PlanItemOverride?
+  completionEvents CompletionEvent[]
+  evidenceLinks    EvidenceLink[]
+
+  @@index([planId, sortOrder])
+  @@index([status])
+  @@index([seriesId])
+  @@map("plan_items")
+}
+
+model PlanItemOverride {
+  id             String   @id @default(uuid())
+  planItemId     String   @unique @map("plan_item_id")
+  applyScope     String   @map("apply_scope")
+  overrideFields Json     @default("{}") @map("override_fields")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  planItem PlanItem @relation(fields: [planItemId], references: [id], onDelete: Cascade)
+
+  @@map("plan_item_overrides")
+}
+
+// ========= COMPLETION / REWARDS =========
+model CompletionEvent {
+  id              String       @id @default(uuid())
+  userId          String       @map("user_id")
+  planItemId      String       @map("plan_item_id")
+  planDate        DateTime     @map("plan_date") @db.Date
+  completedAt     DateTime     @map("completed_at")
+  durationMinutes Int          @default(0) @map("duration_minutes") @db.SmallInt
+  quality         Quality      @default(mid)
+  clientSource    ClientSource @default(app) @map("client_source")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planItem       PlanItem        @relation(fields: [planItemId], references: [id], onDelete: Restrict)
+  idempotencyKey IdempotencyKey?
+  rewardEvent    RewardEvent?
+  evidenceLinks  EvidenceLink[]
+
+  @@index([userId, completedAt])
+  @@index([planItemId])
+  @@map("completion_events")
+}
+
+model IdempotencyKey {
+  key               String   @db.VarChar(120)
+  userId            String   @map("user_id")
+  requestHash       String?  @map("request_hash") @db.Char(64)
+  completionEventId String?  @unique @map("completion_event_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completionEvent CompletionEvent? @relation(fields: [completionEventId], references: [id], onDelete: Restrict)
+
+  @@id([userId, key])
+  @@map("idempotency_keys")
+}
+
+model RewardEvent {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  completionEventId String   @unique @map("completion_event_id")
+  goldDelta         Int      @map("gold_delta")
+  diamondDelta      Int      @map("diamond_delta")
+  expDelta          Int      @map("exp_delta")
+  axisDelta         Json     @default("{}") @map("axis_delta")
+  levelup           Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completionEvent CompletionEvent @relation(fields: [completionEventId], references: [id], onDelete: Restrict)
+
+  @@map("reward_events")
+}
+
+// ========= LEDGERS =========
+model WalletLedger {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  refType      String   @map("ref_type")
+  refId        String   @map("ref_id")
+  currency     Currency
+  delta        Int
+  balanceAfter BigInt?  @map("balance_after")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("wallet_ledger")
+}
+
+model AxisLedger {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  refType    String   @map("ref_type")
+  refId      String   @map("ref_id")
+  axis       Axis
+  delta      Int
+  valueAfter Int?     @map("value_after")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, axis, createdAt])
+  @@map("axis_ledger")
+}
+
+model ExpLedger {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  refType    String   @map("ref_type")
+  refId      String   @map("ref_id")
+  delta      Int
+  expAfter   Int?     @map("exp_after")
+  levelAfter Int?     @map("level_after")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("exp_ledger")
+}
+
+// ========= SERIES =========
+model Series {
+  id                     String   @id @default(uuid())
+  userId                 String   @map("user_id")
+  title                  String   @db.VarChar(80)
+  axis                   Axis
+  goalId                 String?  @map("goal_id")
+  tierDefault            Int      @map("tier_default") @db.SmallInt
+  estimatedMinutesDefault Int     @map("estimated_minutes_default") @db.SmallInt
+  active                 Boolean  @default(true)
+  startDate              DateTime @map("start_date") @db.Date
+  endDate                DateTime? @map("end_date") @db.Date
+  ruleType               RuleType @map("rule_type")
+  ruleJson               Json     @default("{}") @map("rule_json")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal           Goal?                 @relation(fields: [goalId], references: [id])
+  planItems      PlanItem[]
+  generationLogs SeriesGenerationLog[]
+
+  @@index([userId, active])
+  @@map("series")
+}
+
+model SeriesGenerationLog {
+  id             String   @id @default(uuid())
+  seriesId       String   @map("series_id")
+  date           DateTime @db.Date
+  generatedCount Int      @default(0) @map("generated_count")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, date])
+  @@map("series_generation_log")
+}
+
+// ========= STORY =========
+model StoryDraft {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  date      DateTime  @db.Date
+  mode      DraftMode @default(narrative)
+  title     String    @db.VarChar(80)
+  summary   String
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  blocks StoryBlock[]
+
+  @@unique([userId, date, mode])
+  @@map("story_drafts")
+}
+
+model StoryBlock {
+  id            String   @id @default(uuid())
+  draftId       String   @map("draft_id")
+  blockType     String   @map("block_type")
+  orderIndex    Int      @default(0) @map("order_index")
+  generatedText String   @map("generated_text")
+  finalText     String?  @map("final_text")
+  locked        Boolean  @default(false)
+  hidden        Boolean  @default(false)
+  evidenceCount Int      @default(0) @map("evidence_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  draft         StoryDraft       @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  edits         StoryBlockEdit[]
+  evidenceLinks EvidenceLink[]
+
+  @@index([draftId, orderIndex])
+  @@map("story_blocks")
+}
+
+model StoryBlockEdit {
+  id        String   @id @default(uuid())
+  blockId   String   @map("block_id")
+  editType  EditType @map("edit_type")
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  block StoryBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@map("story_block_edits")
+}
+
+model EvidenceLink {
+  id                String   @id @default(uuid())
+  blockId           String   @map("block_id")
+  completionEventId String   @map("completion_event_id")
+  planItemId        String   @map("plan_item_id")
+  weight            Int      @default(1) @db.SmallInt
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  block           StoryBlock      @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  completionEvent CompletionEvent @relation(fields: [completionEventId], references: [id], onDelete: Restrict)
+  planItem        PlanItem        @relation(fields: [planItemId], references: [id], onDelete: Restrict)
+
+  @@index([blockId])
+  @@map("evidence_links")
+}
+
+// ========= SHOP =========
+model ShopItem {
+  id            String       @id @default(uuid())
+  axis          Axis?
+  slot          CosmeticSlot
+  rarity        Rarity
+  name          String       @db.VarChar(80)
+  description   String       @db.VarChar(140)
+  priceCurrency Currency     @map("price_currency")
+  priceAmount   Int          @map("price_amount")
+  unlockRule    Json?        @map("unlock_rule")
+  assetRef      String       @map("asset_ref") @db.VarChar(120)
+  active        Boolean      @default(true)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  inventory      Inventory[]
+  equippedItems  EquippedItem[]
+  purchaseEvents PurchaseEvent[]
+
+  @@map("shop_items")
+}
+
+model Inventory {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  shopItemId String   @map("shop_item_id")
+  ownedAt    DateTime @default(now()) @map("owned_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopItem ShopItem @relation(fields: [shopItemId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, shopItemId])
+  @@map("inventory")
+}
+
+model EquippedItem {
+  userId     String       @map("user_id")
+  slot       CosmeticSlot
+  shopItemId String       @map("shop_item_id")
+  equippedAt DateTime     @default(now()) @map("equipped_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopItem ShopItem @relation(fields: [shopItemId], references: [id], onDelete: Restrict)
+
+  @@id([userId, slot])
+  @@map("equipped_items")
+}
+
+model PurchaseEvent {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  shopItemId    String   @map("shop_item_id")
+  currency      Currency
+  amount        Int
+  purchasedAt   DateTime @default(now()) @map("purchased_at")
+  status        String
+  failureReason String?  @map("failure_reason") @db.VarChar(80)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopItem ShopItem @relation(fields: [shopItemId], references: [id], onDelete: Restrict)
+
+  @@map("purchase_events")
+}
