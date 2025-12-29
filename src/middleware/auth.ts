@@ -37,7 +37,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 }
 
 export function generateToken(payload: { userId: string; email?: string }): string {
+  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    expiresIn: expiresIn as jwt.SignOptions['expiresIn'],
   });
 }

@@ -22,11 +22,14 @@ export function errorHandler(
   const code = err.code || 'INTERNAL_ERROR';
   const message = err.message || 'An unexpected error occurred';
 
-  res.status(statusCode).json({
+  const response: { error: string; message: string; details?: unknown } = {
     error: code,
     message,
-    ...(err.details && { details: err.details }),
-  });
+  };
+  if (err.details) {
+    response.details = err.details;
+  }
+  res.status(statusCode).json(response);
 }
 
 export function createError(
