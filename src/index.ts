@@ -9,6 +9,7 @@ import planItemsRouter from './routes/planItems.js';
 import shopRouter from './routes/shop.js';
 import storyRouter from './routes/story.js';
 import authRouter from './routes/auth.js';
+import seriesRouter from './routes/series.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +30,7 @@ app.use('/v1/today', todayRouter);
 app.use('/v1/plan/items', planItemsRouter);
 app.use('/v1/shop', shopRouter);
 app.use('/v1/drafts/story', storyRouter);
+app.use('/v1/series', seriesRouter);
 
 // Error handling
 app.use(notFound);
@@ -52,6 +54,8 @@ app.listen(PORT, () => {
 ║   - POST /v1/shop/purchase      아이템 구매               ║
 ║   - POST /v1/shop/equip         아이템 장착               ║
 ║   - GET  /v1/drafts/story       스토리 드래프트           ║
+║   - GET  /v1/series             시리즈 목록               ║
+║   - POST /v1/series             시리즈 생성               ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
