@@ -120,3 +120,37 @@ export async function deleteSeries(userId: string, seriesId: string): Promise<vo
     where: { id: seriesId },
   });
 }
+
+// 배치 시리즈 생성 (온보딩용)
+export async function createSeriesBatch(
+  userId: string,
+  items: SeriesInput[]
+): Promise<{ series: SeriesResponse[] }> {
+  const results: SeriesResponse[] = [];
+
+  // 트랜잭션으로 한 번에 생성
+  await prisma.$transaction(async (tx) => {
+    for (const data of items) {
+      const ruleType = data.rule_type as RuleType;
+      const axis = data.axis as Axis;
+
+      const series = await tx.series.create({
+        data: {
+          userId,
+          title: data.title,
+          axis,
+          tierDefault: data.tier_default,
+          estimatedMinutesDefault: data.estimated_minutes_default,
+          active: data.active,
+          startDate: new Date(),
+          ruleType,
+          ruleJson: data.rule_json || {},
+        },
+      });
+
+      results.push(mapToResponse(series));
+    }
+  });
+
+  return { series: results };
+}

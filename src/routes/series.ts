@@ -5,6 +5,7 @@ import { createError } from '../middleware/errorHandler.js';
 import {
   getSeries,
   createSeries,
+  createSeriesBatch,
   updateSeries,
   deleteSeries,
 } from '../services/seriesService.js';
@@ -54,6 +55,27 @@ router.post('/', authMiddleware, async (req: Request, res: Response, next: NextF
     }
 
     const result = await createSeries(userId, parseResult.data);
+    res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /v1/series/batch - 시리즈 배치 생성 (온보딩용)
+const SeriesBatchSchema = z.object({
+  items: z.array(SeriesInputSchema).min(1).max(20),
+});
+
+router.post('/batch', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.userId;
+
+    const parseResult = SeriesBatchSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      throw createError('Invalid request body', 400, 'VALIDATION_ERROR', parseResult.error.errors);
+    }
+
+    const result = await createSeriesBatch(userId, parseResult.data.items);
     res.status(201).json(result);
   } catch (error) {
     next(error);
